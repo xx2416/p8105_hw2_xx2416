@@ -142,7 +142,7 @@ pols_month<-
   select(year,month,president,everything())
 ```
 #Second, clean the data in snp.csv using a similar process to the above. 
-This time the date is kind of tricky. The `date` presents %m%d%y format and the year is 2 digits, not 4 digits, which means that we will only get 2 digit int of the year by only applying `separate`. Hence, we use `parse_data_time` first to convert the date variable into POSIXct date-time object, and the following process is similar to the above.
+This time the date is kind of tricky. The `date` presents %m%d%y format and the year is 2 digits, not 4 digits, which means that we will only get 2 digit int of the year by only applying `separate`. Hence, we use `parse_data_time` first to convert the date variable into **POSIXct** date-time object, and the following process is similar to the above.
 ```{r warning = FALSE}
 df_snp<-
   read.csv("data/fivethirtyeight_datasets/snp.csv") %>% 
@@ -151,7 +151,8 @@ df_snp<-
   separate(date,c("year","month","day"),sep = "-",convert = TRUE) %>% 
   arrange(year,month) %>%
   mutate(month = month.abb[month])%>%
-  select(year,month,-day,everything())
+  select(year,month,-day,everything()) %>% 
+  select(-day)
 ```
 
 #Third, tidy the unemployment data so that it can be merged with the previous datasets.
@@ -163,8 +164,16 @@ df_unemploy<-
     Jan:Dec,
     names_to = "month",
     values_to = "pct_unemploy"
-  ) 
-  
+  ) %>% 
+  janitor::clean_names()
 ```
 #Join the datasets by merging snp into pols, and merging unemployment into the result.
+```{r}
+df_pols_snp<-left_join(pols_month,df_snp,by=c("year","month"))
+df_total<-left_join(df_pols_snp,df_unemploy,by=c("year","month"))
+```
+* In the dataset `pols_month`, there are `r nrow(pols_month)` rows and `r ncol(pols_month)` columns. Key variables are time variables including `year` and `month`. The range of the year is `r range(pull(pols_month,year))`. Other variables including *gov_gop*: the number of republican governors on the associated date, *sen_gop*: the number of republican senators on the associated date, *rep_gop*: the number of republican representatives on the associated date, *gov_dem*: the number of democratic governors on the associated date, *sen_dem*: the number of democratic senators on the associated date, *rep_dem*: the number of democratic representatives on the associated date.
+* In the dataset `df_snp`, there are `r nrow(df_snp)` rows and `r ncol(df_snp)` columns. Key variables are `year`, which range from `r range(pull(df_snp,year))`, `month`, and `close`, which contains the closing values of the S&P stock index on the associated date.
+* In the datset `df_unemploy`, there are `r nrow(df_unemploy)` rows and `r ncol(df_unemploy)` columns. Key variables include `year` ranging in `r range(pull(df_unemploy,year))`, `month`, and `pct_unemploy` which contains the the percentage of unemployment of the associated month and year.
 
+* In the final version of dataset `df_total`, there are `r nrow(df_total)` rows and `r ncol(df_total)` columns. Since we keep using `left_join()` function, the column number and variables like year and month all equal those in the dataset `pols_month`.  
