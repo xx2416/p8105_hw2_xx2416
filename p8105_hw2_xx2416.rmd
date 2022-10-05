@@ -16,6 +16,7 @@ This solution focuses on a reproducible report containing code and text necessar
 ```{r load_libraries}
 library(tidyverse)
 library(readxl)
+library(lubridate)
 ```
 
 ### Problem 1
@@ -93,17 +94,18 @@ trans_ent %>%
 Meanwhile, to keep track of which Trash Wheel is which, we add an additional variable called **wheel_type** to both datasets before combining.
 ```{r}
 Mr.trash_wheel<-
-  read_excel("data/Trash-Wheel-Collection-Totals-7-2020-2.xlsx",sheet = "Mr. Trash Wheel",range = "A2:N535") %>%
+  read_excel("data/Trash Wheel Collection Data.xlsx",sheet = "Mr. Trash Wheel",range = "A2:N549") %>%
   janitor::clean_names() %>% 
   drop_na(dumpster) %>% 
   filter(!(dumpster=="Grand Total")) %>% 
   mutate(sports_balls = as.integer(sports_balls),wheel_type="Mr.trash_wheel")
 
 Professor_trash_wheel<-
-  read_excel("data/Trash-Wheel-Collection-Totals-7-2020-2.xlsx",sheet = "Professor Trash Wheel",range = "A2:N117") %>% 
+  read_excel("data/Trash Wheel Collection Data.xlsx",sheet = "Professor Trash Wheel",range = "A2:N96") %>% 
   janitor::clean_names() %>% 
   drop_na(dumpster) %>% 
-  mutate(sports_balls = as.integer(sports_balls),dumpster= as.character(dumpster),wheel_type="Professor_trash_wheel")
+  mutate(sports_balls = NA,year=as.character(year),wheel_type="Professor_trash_wheel") %>% 
+  select(-x14)
 ```
 #Then we combine these two datasets togather
 We use `bind_rows` to combine these two datasets and name the new dataset **Trash_wheel**
@@ -123,4 +125,46 @@ by_trash_wheel<-Trash_wheel %>%
     n_sports_balls=sum(sports_balls)
   )
 ```
+
+### Problem 3
+This problem uses the **FiveThirtyEight** data. In particular, we’ll use the data in pols-month.csv, unemployment.csv, and snp.csv. Our goal is to merge these into a single data frame using year and month as keys across datasets.
+
+#First, clean the data in pols-month.csv
+We first use `separate()`to break the variable `mon`, and then `month.abb` is applied to mutate the month number to month name. We use `recode`to create a new variable taking values `gop` and `dem`. 
+```{r warning = FALSE}
+pols_month<-
+  read.csv("data/fivethirtyeight_datasets/pols-month.csv") %>% 
+  janitor::clean_names() %>% 
+  separate(mon,c("year","month","day"),sep = "-",convert = TRUE) %>%
+  mutate(month=month.abb[month]) %>%
+  mutate(president=recode(prez_gop,`1`="gop",`0`="dem"),president=factor(president))%>%
+  select(-day, -prez_gop, - prez_dem) %>% 
+  select(year,month,president,everything())
+```
+#Second, clean the data in snp.csv using a similar process to the above. 
+This time the date is kind of tricky. The `date` presents %m%d%y format and the year is 2 digits, not 4 digits, which means that we will only get 2 digit int of the year by only applying `separate`. Hence, we use `parse_data_time` first to convert the date variable into POSIXct date-time object, and the following process is similar to the above.
+```{r warning = FALSE}
+df_snp<-
+  read.csv("data/fivethirtyeight_datasets/snp.csv") %>% 
+  janitor::clean_names() %>%
+  mutate(date=parse_date_time(date,"%m/%d/%y")) %>% 
+  separate(date,c("year","month","day"),sep = "-",convert = TRUE) %>% 
+  arrange(year,month) %>%
+  mutate(month = month.abb[month])%>%
+  select(year,month,-day,everything())
+```
+
+#Third, tidy the unemployment data so that it can be merged with the previous datasets.
+We use `pivot_longer` function to switch the format of the dataset.
+```{r}
+df_unemploy<-
+  read.csv("data/fivethirtyeight_datasets/unemployment.csv") %>% 
+  pivot_longer(
+    Jan:Dec,
+    names_to = "month",
+    values_to = "pct_unemploy"
+  ) 
+  
+```
+#Join the datasets by merging snp into pols, and merging unemployment into the result.
 
